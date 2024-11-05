@@ -1,0 +1,55 @@
+name: Trigger OpenShift Pipeline
+
+on:
+  push:
+    branches:
+      - main  # This will trigger the workflow on pushes to the 'main' branch
+
+jobs:
+  trigger_pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Trigger Tekton PipelineRun on OpenShift
+      env:
+        OPENSHIFT_API_URL: ${{ secrets.OPENSHIFT_API_URL }}
+        OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+        NAMESPACE: ${{ secrets.NAMESPACE }}
+        PIPELINE_NAME: ${{ secrets.PIPELINE_NAME }}
+        REPO_URL: ${{ secrets.REPO_URL }}
+        IMAGE: docker.io/leo107/hello-world:latest
+      run: |
+        # Use curl to create a PipelineRun on OpenShift
+        curl -X POST "${OPENSHIFT_API_URL}/apis/tekton.dev/v1beta1/namespaces/${NAMESPACE}/pipelineruns" \
+          -H "Authorization: Bearer ${OPENSHIFT_TOKEN}" \
+          -H "Content-Type: application/json" \
+          -d '{
+                "apiVersion": "tekton.dev/v1beta1",
+                "kind": "PipelineRun",
+                "metadata": {
+                  "generateName": "'"${PIPELINE_NAME}"'-run-"
+                },
+                "spec": {
+                  "pipelineRef": {
+                    "name": "'"${PIPELINE_NAME}"'"
+                  },
+                  "params": [
+                    {
+                      "name": "REPO_URL",
+                      "value": "'"${REPO_URL}"'"
+                    },
+                    {
+                      "name": "IMAGE",
+                      "value": "'"${IMAGE}"'"
+                    }
+                  ],
+                  "workspaces": [
+                    {
+                      "name": "shared-workspace",
+                      "persistentVolumeClaim": {
+                        "claimName": "pvc-shared-workspace"  # Make sure this PVC exists in your namespace
+                      }
+                    }
+                  ]
+                }
+              }'
